@@ -7,7 +7,7 @@ Analyzing some of the transaction of the multi send contract, I found that these
 - EOA sends a tx to a SafeProxy with execTransaction and the inner tx has to = multi send contract, the inner data is the tx list and each of them is directed to a target contract
 - EOA sends a tx to the multi send contract, the data is the tx list and EVERY inner tx is directed to a SafeProxy with method = execTransaction, which will call a target contract
 
-There is the possibility that in the last 2 points a recursive thing is present (i.e. in point 2 one of the tx in the list is directed to a multi send contract and in point 3 the execTransaction will have inner to = multi send contract), but it would make no sense to create such a tx to begin with as the EOA could just expand the initial list of transactions.
+There is the possibility that in the last 2 points a recursive thing is present (i.e. in point 2 one of the tx in the list is directed to a multi send contract and in point 3 the execTransaction will have inner to = multi send contract), but it would make no sense to create such a tx to begin with as the EOA could just expand the initial list of transactions. (Actually, I will later find there are these)
 
 There is also the possibility that in the point 2 one of the tx in the list will be an execTransaction directed to a SafeProxy, I'll check that it's not happening during the run of the code to get the solution.
 
@@ -41,6 +41,8 @@ This is the easiest of the last 2 points since we have a small number of "to" ad
 
 So here I found ~200 inner transactions that are not execTransaction. These are proxy creation followed by contract calls but NOT through the proxy created, should we consider those contracts in the count or not? For now I haven't included them. If we want them I just need to consider the "to" of the inner tx which is these case is not a SafeProxy but a target contract.
 
+I also found ~400 inner transactions directed to a multi send contract, so I have to consider an inner recursion here. The older code is in the first commit, the new with recursive is the last commit. I had also found the burn address in the top10 so I'll pick the top 11.
+
 ## execTransaction to multi send
 
 This is the hardest case since we can't filter transactions with etherscan API. I can get the hashes of the txs sent from proxies from Dune like this:
@@ -54,7 +56,7 @@ select hash from ethereum.transactions WHERE block_time > now() - interval '30' 
 
 but I can't export the addresses in csv and also it would take a lot of calls to etherscan anyway since they are more than 5k transactions in the last month. I could get all the tx data from Dune but I still can't export the csv.
 
-The only idea that comes to mind is: using etherscan to get the logs with the topic0 `ExecutionSuccess(bytes32,uint256)`. I will probably get some other non-related stuff but the txs emitting these logs will not have the execTransaction method so I will just discard them. After I have all the hashes, I get all the txs from a node with RPC since I can batch the `eth_getTransactionByHash` calls inside the RPC request. Once I have all the txs I will run a script to extract the data in a similar way of the previous point, the example script is case2.py (not tested, just sketched).
+The only idea that comes to mind is: using etherscan to get the logs with the topic0 `ExecutionSuccess(bytes32,uint256)`. I will probably get some other non-related stuff but the txs emitting these logs will not have the execTransaction method so I will just discard them. After I have all the hashes, I get all the txs from a node with RPC since I can batch the `eth_getTransactionByHash` calls inside the RPC request. Once I have all the txs I will run a script to extract the data in a similar way of the previous point
 
 ## Results
 
